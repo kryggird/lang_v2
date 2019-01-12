@@ -42,34 +42,23 @@ std::ostream& operator<< (std::ostream& stream, const Instruction& inst) {
     return stream;
 }
 
-class Counter {
-public:
-    std::string operator()() {
-        std::ostringstream buffer {};
-        buffer << "l" << counter;
-        ++counter;
+using ValueType = int;
+using VariableType = std::string;
+using BlockType = int;
+using Variables = std::unordered_map<VariableType, std::unordered_map<BlockType, int>>;
 
-        return buffer.str();
-    }
-private:
-    int counter = 0;
-};
-
-class Tmp {
+class Context {
 public:
-    using ValueType = int;
-    using VariableType = std::string;
-    using BlockType = int;
-    using Variables = std::unordered_map<VariableType, std::unordered_map<BlockType, int>>;
+    using VariableCounters = std::unordered_map<VariableType, int>;
 
     void set(BlockType block, VariableType variable, ValueType value) {
         variable_list[variable][block] = value;
     };
 
     void set(BlockType block, VariableType variable) {
-        bool var_exists = variable_list.count(variable) && variable_list[variable].count(block);
-        auto value = var_exists ? this->get(block, variable) : 0;
-        this->set(block, variable, ++value);
+        auto& counter = this->variable_counters[variable];
+        this->set(block, variable, counter);
+        ++counter;
     }
 
     ValueType get(BlockType block, VariableType variable) {
@@ -85,6 +74,7 @@ public:
     }
 private:
     Variables variable_list {};
+    VariableCounters variable_counters {};
 };
 
 bool is_expression(AstNode ast) {
@@ -93,9 +83,11 @@ bool is_expression(AstNode ast) {
 
 class Block {
 public:
+    Block (int t_block_id): block_id {t_block_id} {};
+
     std::vector<Instruction> instructions {};
 
-    std::string push(Tmp& context, AstNode ast) {
+    std::string push(Context& context, AstNode ast) {
         if (ast->name == "Number") {
             return this->push_constant(context, ast);
         } else if (ast->name == "Identifier") {
@@ -109,7 +101,7 @@ public:
         }
     }
 private:
-    std::string token_to_variable(Tmp& context, AstNode ast) {
+    std::string token_to_variable(Context& context, AstNode ast) {
         if (ast->name != "Identifier") {
             throw std::runtime_error("Cannot assign to rvalue!");
         }
@@ -124,7 +116,7 @@ private:
 
     }
 
-    std::string push_constant(Tmp& context, AstNode ast) {
+    std::string push_constant(Context& context, AstNode ast) {
         if (ast->name != "Number") {
             throw std::runtime_error("Error converting!");
         }
@@ -138,7 +130,7 @@ private:
         return variable_name;
     }
 
-    std::string push_identifier(Tmp& context, AstNode ast) {
+    std::string push_identifier(Context& context, AstNode ast) {
         auto variable_id = context.get(block_id, ast->token);
 
         std::ostringstream buffer {};
@@ -147,7 +139,7 @@ private:
         return buffer.str();
     }
 
-    std::string push_operator(Tmp& context, AstNode ast) {
+    std::string push_operator(Context& context, AstNode ast) {
         // TODO Check ast name
         std::string lhs_name = push(context, ast->nodes[0]);
         std::string rhs_name = push(context, ast->nodes[1]);
@@ -162,7 +154,7 @@ private:
         return variable_name;
     }
 
-    std::string push_assigment(Tmp& context, AstNode ast) {
+    std::string push_assigment(Context& context, AstNode ast) {
         std::string rvalue_name = push(context, ast->nodes[1]);
         auto lvalue_name = token_to_variable(context, ast->nodes[0]);
 
@@ -171,9 +163,57 @@ private:
     }
 
     const static std::unordered_set<std::string> operators;
-    int block_id = 0;
+    int block_id = 0; // TODO Support multiple blocks
 };
 
 const std::unordered_set<std::string> Block::operators = std::unordered_set<std::string> {"Addition", "Subtraction", "Multiplication", "Division"};
+
+class Program {
+public:
+    void push(AstNode ast) {
+        if (ast->name == "BasicBlock") {
+            return this->push_basic_block(ast);
+        } else if (ast->name == "IfBlock") {
+            return this->push_if_block(ast);
+        } else if (ast->name == "WhileBlock") {
+            throw std::runtime_error("'while' not implemented yet!");
+        } else {
+            this->blocks[this->current_block].push(context, ast);
+        }
+    }
+
+    std::vector<Block> blocks {Block {0}};
+private:
+    void push_basic_block(AstNode ast) {
+        for (auto& child: ast->nodes) {
+            this->push(child);
+        }
+    }
+
+    void push_if_block(AstNode ast) {
+        blocks[current_block].push(context, ast->nodes[0]);
+
+        auto if_block = add_block();
+        // TODO handle Phi functions!
+        this->push(ast->nodes[1]);
+
+        if (ast->nodes.size() > 2) {
+            auto else_block = add_block();
+            // TODO handle Phi functions!
+            this->push(ast->nodes[2]);
+        }
+
+        add_block();
+    }
+
+    BlockType add_block() {
+        ++current_block;
+        blocks.push_back(Block {current_block});
+        return current_block;
+    }
+
+    Context context {};
+    BlockType current_block = 0;
+};
 
 #endif //LANG_V2_CFG_H

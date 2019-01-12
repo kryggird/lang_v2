@@ -87,8 +87,8 @@ int main() {
     AstNode ast;
 //    auto text = R"(my)";
 //    auto text = R"(var my = 7 + 5)";
-    auto text = R"(4 + 5 * 7; 5 + 4)";
-//    auto text = R"(if 5; 7; else; 8; 9 + 5; end)";
+//    auto text = R"(4 + 5 * 7; 5 + 4)";
+    auto text = R"(if 5; 7; else; 8; 9 + 5; end)";
 //    auto text = R"(while 1; 7; end)";
 
     std::unordered_set<std::string> blacklist = {"SingleLineBlock", "Expression", "Additive", "Multiplicative", "Primary"};
@@ -97,14 +97,14 @@ int main() {
 
     std::cout << peg::ast_to_s(ast) << "\n";
 
-    Tmp context {};
-    Block block {};
-    for (auto& expr: ast->nodes) {
-        block.push(context, expr);
-    }
+    Program program {};
+    program.push(ast);
 
-    for (auto& inst: block.instructions) {
-        std::cout << inst << "\n";
+    for (auto& block: program.blocks) {
+        std::cout << "--- new block ---\n";
+        for (auto& expr: block.instructions) {
+            std::cout << expr << "\n";
+        }
     }
 
     return 0;
