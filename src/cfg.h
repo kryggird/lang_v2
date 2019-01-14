@@ -46,8 +46,10 @@ class Block;
 
 using ValueType = int;
 using VariableType = std::string;
-using BlockType = int;
+using BlockType = Block*;
 using Variables = std::unordered_map<VariableType, std::unordered_map<BlockType, int>>;
+
+using BlockPtr = std::shared_ptr<Block>;
 
 class Context {
 public:
@@ -79,15 +81,12 @@ private:
     VariableCounters variable_counters {};
 };
 
-bool is_expression(AstNode ast) {
-    return true;
-}
-
 class Block {
 public:
-    Block (BlockType t_block_id): m_block_id {t_block_id} {};
+    Block(std::unordered_set<BlockPtr> t_predecessors = {}): predecessors {t_predecessors} {};
 
     std::vector<Instruction> instructions {};
+    std::unordered_set<BlockPtr> predecessors {};
 
     VariableType push(Context& context, AstNode ast) {
         if (ast->name == "Number") {
@@ -165,11 +164,10 @@ private:
     }
 
     BlockType block_id() {
-        return this->m_block_id;
+        return this;
     }
 
     const static std::unordered_set<std::string> operators;
-    BlockType m_block_id;
 };
 
 const std::unordered_set<std::string> Block::operators = std::unordered_set<std::string> {"Addition", "Subtraction", "Multiplication", "Division"};
@@ -188,7 +186,7 @@ public:
         }
     }
 
-    std::vector<Block> blocks {Block {0}};
+    std::vector<BlockPtr> blocks {std::make_shared<Block>()};
 private:
     void push_basic_block(AstNode ast) {
         for (auto& child: ast->nodes) {
@@ -198,32 +196,37 @@ private:
 
     void push_if_block(AstNode ast) {
         this->current_block()->push(context, ast->nodes[0]);
+        auto last_block = current_block();
 
-        auto if_block = add_block();
+        auto if_block = add_block({last_block});
         // TODO handle Phi functions!
         this->push(ast->nodes[1]);
+        std::unordered_set<BlockPtr> predecessors {if_block};
 
         if (ast->nodes.size() > 2) {
-            auto else_block = add_block();
+            auto else_block = add_block({last_block});
             // TODO handle Phi functions!
             this->push(ast->nodes[2]);
+            predecessors.insert(else_block);
         }
 
-        add_block();
+        add_block(predecessors);
     }
 
-    BlockType add_block() {
+    BlockPtr add_block(std::unordered_set<BlockPtr> predecessors = {}) {
         ++m_current_block;
-        blocks.push_back(Block {m_current_block});
-        return m_current_block;
+        auto block = std::make_shared<Block>(predecessors);
+
+        blocks.push_back(block);
+        return block;
     }
 
-    Block* current_block() {
-        return &(this->blocks[this->m_current_block]);
+    BlockPtr current_block() {
+        return this->blocks[this->m_current_block];
     }
 
     Context context {};
-    BlockType m_current_block = 0;
+    int m_current_block = 0;
 };
 
 #endif //LANG_V2_CFG_H

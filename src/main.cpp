@@ -102,7 +102,7 @@ int main() {
 
     for (auto& block: program.blocks) {
         std::cout << "--- new block ---\n";
-        for (auto& expr: block.instructions) {
+        for (auto& expr: block->instructions) {
             std::cout << expr << "\n";
         }
     }
