@@ -42,6 +42,8 @@ std::ostream& operator<< (std::ostream& stream, const Instruction& inst) {
     return stream;
 }
 
+class Block;
+
 using ValueType = int;
 using VariableType = std::string;
 using BlockType = int;
@@ -83,11 +85,11 @@ bool is_expression(AstNode ast) {
 
 class Block {
 public:
-    Block (int t_block_id): block_id {t_block_id} {};
+    Block (BlockType t_block_id): m_block_id {t_block_id} {};
 
     std::vector<Instruction> instructions {};
 
-    std::string push(Context& context, AstNode ast) {
+    VariableType push(Context& context, AstNode ast) {
         if (ast->name == "Number") {
             return this->push_constant(context, ast);
         } else if (ast->name == "Identifier") {
@@ -101,13 +103,13 @@ public:
         }
     }
 private:
-    std::string token_to_variable(Context& context, AstNode ast) {
+    VariableType token_to_variable(Context& context, AstNode ast) {
         if (ast->name != "Identifier") {
             throw std::runtime_error("Cannot assign to rvalue!");
         }
 
-        context.set(block_id, ast->token);
-        auto variable_id = context.get(block_id, ast->token);
+        context.set(this->block_id(), ast->token);
+        auto variable_id = context.get(this->block_id(), ast->token);
 
         std::ostringstream buffer {};
         buffer << ast->token << variable_id;
@@ -116,22 +118,22 @@ private:
 
     }
 
-    std::string push_constant(Context& context, AstNode ast) {
+    VariableType push_constant(Context& context, AstNode ast) {
         if (ast->name != "Number") {
             throw std::runtime_error("Error converting!");
         }
-        context.set(this->block_id, "_");
-        auto variable_id = context.get(this->block_id, "_");
+        context.set(this->block_id(), "_");
+        auto variable_id = context.get(this->block_id(), "_");
         std::ostringstream buffer {};
         buffer << "_" << variable_id;
 
-        std::string variable_name = buffer.str();
+        VariableType variable_name = buffer.str();
         instructions.push_back(Assignment {variable_name, ast->token});
         return variable_name;
     }
 
-    std::string push_identifier(Context& context, AstNode ast) {
-        auto variable_id = context.get(block_id, ast->token);
+    VariableType push_identifier(Context& context, AstNode ast) {
+        auto variable_id = context.get(this->block_id(), ast->token);
 
         std::ostringstream buffer {};
         buffer << ast->token << variable_id;
@@ -139,31 +141,35 @@ private:
         return buffer.str();
     }
 
-    std::string push_operator(Context& context, AstNode ast) {
+    VariableType push_operator(Context& context, AstNode ast) {
         // TODO Check ast name
-        std::string lhs_name = push(context, ast->nodes[0]);
-        std::string rhs_name = push(context, ast->nodes[1]);
-        context.set(this->block_id, "_");
+        auto lhs_name = push(context, ast->nodes[0]);
+        auto rhs_name = push(context, ast->nodes[1]);
+        context.set(this->block_id(), "_");
 
-        auto variable_id = context.get(this->block_id, "_");
+        auto variable_id = context.get(this->block_id(), "_");
         std::ostringstream buffer {};
         buffer << "_" << variable_id;
 
-        std::string variable_name = buffer.str();
+        VariableType variable_name = buffer.str();
         instructions.push_back(ThreeAddressCode {variable_name, lhs_name, ast->name, rhs_name});
         return variable_name;
     }
 
-    std::string push_assigment(Context& context, AstNode ast) {
-        std::string rvalue_name = push(context, ast->nodes[1]);
+    VariableType push_assigment(Context& context, AstNode ast) {
+        VariableType rvalue_name = push(context, ast->nodes[1]);
         auto lvalue_name = token_to_variable(context, ast->nodes[0]);
 
         instructions.push_back(Assignment {lvalue_name, rvalue_name});
         return lvalue_name;
     }
 
+    BlockType block_id() {
+        return this->m_block_id;
+    }
+
     const static std::unordered_set<std::string> operators;
-    int block_id = 0; // TODO Support multiple blocks
+    BlockType m_block_id;
 };
 
 const std::unordered_set<std::string> Block::operators = std::unordered_set<std::string> {"Addition", "Subtraction", "Multiplication", "Division"};
@@ -178,7 +184,7 @@ public:
         } else if (ast->name == "WhileBlock") {
             throw std::runtime_error("'while' not implemented yet!");
         } else {
-            this->blocks[this->current_block].push(context, ast);
+            this->current_block()->push(context, ast);
         }
     }
 
@@ -191,7 +197,7 @@ private:
     }
 
     void push_if_block(AstNode ast) {
-        blocks[current_block].push(context, ast->nodes[0]);
+        this->current_block()->push(context, ast->nodes[0]);
 
         auto if_block = add_block();
         // TODO handle Phi functions!
@@ -207,13 +213,17 @@ private:
     }
 
     BlockType add_block() {
-        ++current_block;
-        blocks.push_back(Block {current_block});
-        return current_block;
+        ++m_current_block;
+        blocks.push_back(Block {m_current_block});
+        return m_current_block;
+    }
+
+    Block* current_block() {
+        return &(this->blocks[this->m_current_block]);
     }
 
     Context context {};
-    BlockType current_block = 0;
+    BlockType m_current_block = 0;
 };
 
 #endif //LANG_V2_CFG_H
