@@ -88,8 +88,10 @@ int main() {
 //    auto text = R"(my)";
 //    auto text = R"(var my = 7 + 5)";
 //    auto text = R"(4 + 5 * 7; 5 + 4)";
-    auto text = R"(if 5; 7; else; 8; 9 + 5; end)";
+//    auto text = R"(if 5; 7; else; 8; 9 + 5; end)";
 //    auto text = R"(while 1; 7; end)";
+    auto text = R"(var x = 3; if 5; x+5; else; x+ 10; end; x+15;)";
+
 
     std::unordered_set<std::string> blacklist = {"SingleLineBlock", "Expression", "Additive", "Multiplicative", "Primary"};
     parser.parse(text, ast);
@@ -102,9 +104,7 @@ int main() {
 
     for (auto& block: program.blocks) {
         std::cout << "--- new block ---\n";
-        for (auto& expr: block->instructions) {
-            std::cout << expr << "\n";
-        }
+        std::cout << *block;
     }
 
     return 0;
