@@ -13,8 +13,8 @@
 // TODO Centralise type aliases?
 using AstNode = std::shared_ptr<peg::Ast>;
 
-const std::string EMPTY_VARIABLE = "";
-const std::string SEPARATOR = "_";
+const std::string EMPTY_VARIABLE {""};
+const std::string SEPARATOR {"_"};
 
 class Block;
 
@@ -101,7 +101,7 @@ struct Phi {
     friend std::ostream& operator<< (std::ostream& stream, const Phi& phi) {
         stream << phi.variable_name << " <- Phi(";
         for (auto& op: phi.operands) {
-            stream << op;
+            stream << op << ", ";
         }
         stream << ")";
         return stream;
@@ -156,7 +156,7 @@ private:
 
 class Block {
 public:
-    Block(std::unordered_set<BlockPtr> t_predecessors = {}): predecessors {t_predecessors} {};
+    explicit Block(std::unordered_set<BlockPtr> t_predecessors = {}): predecessors {t_predecessors} {};
 
     std::vector<Phi> phis {}; // Phis are always at the beginning of a basic block.
     std::vector<Instruction> instructions {};
@@ -169,8 +169,8 @@ public:
             return this->push_identifier(context, ast);
         } else if (operators.count(ast->name)) {
             return this->push_operator(context, ast);
-        } else if (ast->name == "Assignment"){
-            return this->push_assigment(context, ast);
+        } else if (ast->name == "Declaration"){
+            return this->push_declaration(context, ast);
         } else {
             throw std::runtime_error("Not implemented!");
         }
@@ -224,7 +224,7 @@ private:
         return variable_name;
     }
 
-    VariableType push_assigment(Context& context, AstNode ast) {
+    VariableType push_declaration(Context &context, AstNode ast) {
         VariableType rvalue_name = push(context, ast->nodes[1]);
         auto lvalue_name = token_to_variable(context, ast->nodes[0]);
 
@@ -276,8 +276,8 @@ ValueType Context::get_recursive(BlockType block, VariableType variable) {
 void Context::seal_block(BlockType block) {
     for (auto& phi: block->phis) {
         if (!phi.is_complete) {
-            for (auto pred: block->predecessors) {
-                auto variable_name = this->get(pred.get(), phi.variable_name.to_string());
+            for (auto& pred: block->predecessors) {
+                auto variable_name = this->get(pred.get(), phi.variable_name.name);
                 phi.operands.insert(variable_name);
             }
             phi.is_complete = true;
@@ -294,7 +294,7 @@ public:
         } else if (ast->name == "IfBlock") {
             return this->push_if_block(ast);
         } else if (ast->name == "WhileBlock") {
-            throw std::runtime_error("'while' not implemented yet!");
+            return this->push_while_block(ast);
         } else {
             this->current_block()->push(context, ast);
         }
@@ -325,6 +325,23 @@ private:
         }
 
         add_block(predecessors);
+        this->context.seal_block(this->current_block().get());
+    }
+
+    void push_while_block(AstNode ast) {
+        auto last_block = current_block();
+
+        auto while_block = add_block();
+        this->push(ast->nodes[1]);
+
+        auto condition_block = add_block({last_block, while_block});
+        this->context.seal_block(condition_block.get());
+        this->push(ast->nodes[0]);
+
+        while_block->predecessors.insert(condition_block);
+        this->context.seal_block(while_block.get());
+
+        add_block({condition_block});
         this->context.seal_block(this->current_block().get());
     }
 

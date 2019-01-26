@@ -43,13 +43,13 @@ int main() {
         SingleLineBlock <- IfBlock / WhileBlock / Expression
         IfBlock         <- 'if' Expression ExpressionEnd BasicBlock (ExpressionEnd 'else' ExpressionEnd BasicBlock)? ExpressionEnd 'end'
         WhileBlock      <- 'while' Expression ExpressionEnd BasicBlock ExpressionEnd 'end'
-        Expression      <- Assignment / Additive
+        Expression      <- Declaration / Additive
 
         Additive        <- Addition / Subtraction / Multiplicative
         Multiplicative  <- Multiplication / Division / Primary
         Primary         <- '(' Additive ')' / Number / Identifier
 
-        Assignment      <- 'var' Identifier '=' Additive
+        Declaration     <- Identifier ':=' Additive
         Addition        <- Multiplicative '+' Additive
         Subtraction     <- Multiplicative '-' Additive
         Multiplication  <- Primary '*' Multiplicative
@@ -85,12 +85,13 @@ int main() {
     };
 
     AstNode ast;
-//    auto text = R"(my)";
-//    auto text = R"(var my = 7 + 5)";
+//    auto text = R"(my := 7 + 5)";
 //    auto text = R"(4 + 5 * 7; 5 + 4)";
 //    auto text = R"(if 5; 7; else; 8; 9 + 5; end)";
 //    auto text = R"(while 1; 7; end)";
-    auto text = R"(var x = 3; if 5; x+5; else; x+ 10; end; x+15;)";
+//    auto text = R"(x := 3; while 1; x := x + 5; end; x + 10;"
+//    auto text = R"(x := 3; if 5; x+5; else; x+ 10; end; x+15;)";
+    auto text = R"(x := 3; if 5; x := x + 5; else; x := x + 10; end; x + 15;)";
 
 
     std::unordered_set<std::string> blacklist = {"SingleLineBlock", "Expression", "Additive", "Multiplicative", "Primary"};
