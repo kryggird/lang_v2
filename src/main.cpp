@@ -62,11 +62,6 @@ int main() {
         %whitespace     <- [ \t]*
     )";
 
-//    grammar = R"(
-//        Identifier      <- < [a-zA-Z]+ >
-//        %whitespace     <- [ \t\r\n]*
-//    )";
-
     auto parser = peg::parser {grammar};
     parser.enable_ast();
 

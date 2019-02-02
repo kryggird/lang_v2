@@ -1,3 +1,5 @@
+#include <utility>
+
 #ifndef LANG_V2_CFG_H
 #define LANG_V2_CFG_H
 
@@ -156,7 +158,7 @@ private:
 
 class Block {
 public:
-    explicit Block(std::unordered_set<BlockPtr> t_predecessors = {}): predecessors {t_predecessors} {};
+    explicit Block(std::unordered_set<BlockPtr> t_predecessors = {}): predecessors {std::move(t_predecessors)} {};
 
     std::vector<Phi> phis {}; // Phis are always at the beginning of a basic block.
     std::vector<Instruction> instructions {};
@@ -220,7 +222,7 @@ private:
         context.set(this->block_id(), EMPTY_VARIABLE);
 
         auto variable_name = context.get(this->block_id(), EMPTY_VARIABLE).to_string();
-        instructions.push_back(ThreeAddressCode {variable_name, lhs_name, ast->name, rhs_name});
+        instructions.emplace_back(ThreeAddressCode {variable_name, lhs_name, ast->name, rhs_name});
         return variable_name;
     }
 
@@ -228,7 +230,7 @@ private:
         VariableType rvalue_name = push(context, ast->nodes[1]);
         auto lvalue_name = token_to_variable(context, ast->nodes[0]);
 
-        instructions.push_back(Assignment {lvalue_name, rvalue_name});
+        instructions.emplace_back(Assignment {lvalue_name, rvalue_name});
         return lvalue_name;
     }
 
@@ -259,7 +261,7 @@ ValueType Context::get_recursive(BlockType block, VariableType variable) {
     } else {
         set(block, variable);
         auto variable_name = get(block, variable);
-        auto phi = Phi{block, variable_name}; // FIXME use a weak_ptr
+        auto phi = Phi{block, variable_name}; // FIXME use a weak_ptr?
 
         for (auto pred: block->predecessors) {
             auto variable_name = this->get(pred.get(), variable);
@@ -270,7 +272,6 @@ ValueType Context::get_recursive(BlockType block, VariableType variable) {
         block->phis.push_back(phi);
         return variable_name;
     }
-    throw std::runtime_error("Not implemented!");
 }
 
 void Context::seal_block(BlockType block) {
@@ -286,6 +287,7 @@ void Context::seal_block(BlockType block) {
     this->sealed_blocks.insert(block);
 }
 
+// TODO / FIXME seal first block?
 class Program {
 public:
     void push(AstNode ast) {
